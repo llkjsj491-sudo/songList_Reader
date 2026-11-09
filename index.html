@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lector de listas de canciones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9eef2;--surface:#fff;--ink:#14202b;--muted:#5b6b78;--line:#c9d3db;--accent:#d62a20;--accent-ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1820;--surface:#16222d;--ink:#e8eef3;--muted:#8fa1af;--line:#2a3b49;--accent:#ff4a3d;--accent-ink:#14202b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Bricolage Grotesque",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:40px 20px 80px}
+h1{font-size:clamp(2rem,6vw,3.2rem);line-height:1.02;font-weight:800;letter-spacing:-.03em;margin:0 0 10px}
+.lead{color:var(--muted);margin:0 0 28px;max-width:55ch}
+.drop{display:block;border:2px dashed var(--line);background:var(--surface);border-radius:14px;padding:34px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over,.drop:focus-within{border-color:var(--accent)}
+.drop strong{display:block;font-size:1.15rem}
+.drop span{color:var(--muted);font-size:.92rem}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.thumbs{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 0}
+.thumbs img{height:84px;border-radius:8px;border:1px solid var(--line);object-fit:cover}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:22px 0}
+label.f{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:4px}
+select,input[type=password],input[type=text],textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+textarea{width:100%;min-height:170px;resize:vertical}
+button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:11px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:10px 0;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+#status{color:var(--muted);font-size:.92rem;min-height:1.4em}
+section{margin-top:34px}
+h2{font-size:1.25rem;margin:0 0 6px}
+ol{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid var(--line)}
+li{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--line)}
+li a{color:var(--accent);font-weight:700;text-decoration:none;white-space:nowrap}
+li a:hover{text-decoration:underline}
+li .t{overflow-wrap:anywhere}
+li small{display:block;color:var(--muted);word-break:break-all}
+details{margin-top:18px;color:var(--muted);font-size:.92rem}
+summary{cursor:pointer}
+.hint{font-size:.85rem;color:var(--muted);margin:6px 0 0}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>De la foto a la lista de YouTube</h1>
+  <p class="lead">Sube capturas o fotos con listas de canciones. Lee el texto en tu navegador y te da el enlace de youtube.com de cada una.</p>
+
+  <label class="drop" id="drop">
+    <strong>Elige o arrastra tus imágenes</strong>
+    <span>JPG, PNG o WEBP. Puedes subir varias.</span>
+    <input type="file" id="file" accept="image/*" multiple>
+  </label>
+  <div class="thumbs" id="thumbs"></div>
+
+  <div class="row">
+    <label class="f">Idioma del texto
+      <select id="lang">
+        <option value="spa+eng">Español + inglés</option>
+        <option value="eng">Inglés</option>
+        <option value="spa">Español</option>
+        <option value="por+eng">Portugués + inglés</option>
+        <option value="fra+eng">Francés + inglés</option>
+      </select>
+    </label>
+    <button id="read" disabled>Leer imágenes</button>
+  </div>
+  <div class="bar" id="bar"><i id="barfill"></i></div>
+  <div id="status" role="status" aria-live="polite"></div>
+
+  <section id="edit" hidden>
+    <h2>Canciones detectadas</h2>
+    <p class="hint">Una por línea. Corrige lo que el OCR haya leído mal antes de buscar.</p>
+    <textarea id="songs" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="go">Obtener enlaces de YouTube</button>
+    </div>
+    <details>
+      <summary>Enlaces directos al video (opcional)</summary>
+      <p>Sin clave, cada enlace abre la búsqueda en youtube.com. Con una clave de YouTube Data API v3, el enlace va directo al video (youtube.com/watch?v=…).</p>
+      <label class="f">Clave de API
+        <input type="password" id="key" autocomplete="off" placeholder="AIza...">
+      </label>
+      <p class="hint">Se guarda solo en este navegador.</p>
+    </details>
+  </section>
+
+  <section id="out" hidden>
+    <h2>Resultado</h2>
+    <div class="row" style="margin:8px 0 0">
+      <button class="alt" id="copy">Copiar lista</button>
+      <button class="alt" id="csv">Descargar CSV</button>
+    </div>
+    <ol id="list"></ol>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let files = [];
+let results = [];
+
+// --- Carga de imágenes ---
+function setFiles(list){
+  files = [...list].filter(f => f.type.startsWith('image/'));
+  $('thumbs').innerHTML = '';
+  files.forEach(f => {
+    const img = new Image();
+    img.alt = f.name;
+    const fr = new FileReader();
+    fr.onload = () => { img.src = fr.result; };
+    fr.readAsDataURL(f);
+    $('thumbs').appendChild(img);
+  });
+  $('read').disabled = !files.length;
+  $('status').textContent = files.length ? files.length + ' imagen(es) lista(s).' : 'No se encontraron imágenes válidas.';
+}
+$('file').addEventListener('change', e => setFiles(e.target.files));
+['dragover','dragenter'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', e => setFiles(e.dataTransfer.files));
+
+// --- OCR ---
+$('read').addEventListener('click', async () => {
+  $('read').disabled = true;
+  $('bar').style.display = 'block';
+  let all = [];
+  try {
+    for (let i = 0; i < files.length; i++){
+      const res = await Tesseract.recognize(files[i], $('lang').value, {
+        logger: m => {
+          if (m.status === 'recognizing text'){
+            $('barfill').style.width = ((i + m.progress) / files.length * 100) + '%';
+            $('status').textContent = 'Leyendo imagen ' + (i + 1) + ' de ' + files.length + '…';
+          } else {
+            $('status').textContent = 'Preparando el lector…';
+          }
+        }
+      });
+      all = all.concat(res.data.text.split('\n'));
+    }
+    const songs = parseSongs(all);
+    $('songs').value = songs.join('\n');
+    $('edit').hidden = false;
+    $('status').textContent = songs.length
+      ? songs.length + ' canciones detectadas. Revisa la lista y continúa.'
+      : 'No se detectó texto de canciones. Prueba con una imagen más nítida o escribe la lista a mano.';
+  } catch (err){
+    $('status').textContent = /Worker/i.test(String(err.message || err))
+      ? 'Este entorno bloquea el lector de texto (Web Workers). Abre la página desde GitHub Pages o desde un servidor local y vuelve a intentarlo.'
+      : 'No se pudo leer la imagen: ' + err.message;
+  } finally {
+    $('read').disabled = false;
+    $('bar').style.display = 'none';
+    $('barfill').style.width = '0';
+  }
+});
+
+// --- Limpieza del texto ---
+function parseSongs(lines){
+  const seen = new Set();
+  const out = [];
+  for (let raw of lines){
+    let s = raw
+      .replace(/^[\s\W_]*\d{1,3}\s*[.)\-:]\s*/, '')   // numeración "1." "02)" "3 -"
+      .replace(/^[\s•·*▪●○◦\-–—>]+/, '')              // viñetas
+      .replace(/\s*[\(\[]?\b\d{1,2}:\d{2}(:\d{2})?\b[\)\]]?\s*$/, '') // duración al final
+      .replace(/[|_~]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    const letters = (s.match(/\p{L}/gu) || []).length;
+    if (s.length < 3 || letters < 3 || letters / s.length < 0.5) continue;
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out;
+}
+
+// --- Enlaces de YouTube (siempre dominio youtube.com) ---
+const searchUrl = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
+
+async function videoUrl(q, key){
+  if (!key) return { url: searchUrl(q), direct: false };
+  try {
+    const api = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q='
+      + encodeURIComponent(q) + '&key=' + encodeURIComponent(key);
+    const r = await fetch(api);
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    const id = d.items && d.items[0] && d.items[0].id.videoId;
+    if (id) return { url: 'https://www.youtube.com/watch?v=' + id, direct: true };
+  } catch (e) { /* cae al enlace de búsqueda */ }
+  return { url: searchUrl(q), direct: false };
+}
+
+$('key').value = (() => { try { return localStorage.getItem('yt_key') || ''; } catch (e) { return ''; } })();
+
+$('go').addEventListener('click', async () => {
+  const songs = $('songs').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!songs.length){ $('status').textContent = 'Escribe al menos una canción.'; return; }
+  const key = $('key').value.trim();
+  try { localStorage.setItem('yt_key', key); } catch (e) {}
+  $('go').disabled = true;
+  results = [];
+  $('list').innerHTML = '';
+  $('out').hidden = false;
+  let fallback = 0;
+  for (const s of songs){
+    $('status').textContent = 'Buscando ' + (results.length + 1) + ' de ' + songs.length + '…';
+    const r = await videoUrl(s, key);
+    if (key && !r.direct) fallback++;
+    results.push({ name: s, url: r.url });
+    const li = document.createElement('li');
+    const t = document.createElement('div');
+    t.className = 't';
+    t.textContent = s;
+    const small = document.createElement('small');
+    small.textContent = r.url;
+    t.appendChild(small);
+    const a = document.createElement('a');
+    a.href = r.url; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = r.direct ? 'Ver video' : 'Buscar en YouTube';
+    li.append(t, a);
+    $('list').appendChild(li);
+  }
+  $('status').textContent = fallback
+    ? 'Listo. ' + fallback + ' canción(es) usan enlace de búsqueda porque la API no respondió (revisa la clave o la cuota).'
+    : 'Listo. ' + results.length + ' enlaces generados.';
+  $('go').disabled = false;
+});
+
+// --- Exportar ---
+$('copy').addEventListener('click', async () => {
+  const txt = results.map(r => r.name + ' - ' + r.url).join('\n');
+  try { await navigator.clipboard.writeText(txt); $('status').textContent = 'Lista copiada.'; }
+  catch (e) { $('status').textContent = 'No se pudo copiar. Selecciona el texto manualmente.'; }
+});
+$('csv').addEventListener('click', () => {
+  const q = v => '"' + v.replace(/"/g, '""') + '"';
+  const csv = 'cancion,enlace\n' + results.map(r => q(r.name) + ',' + q(r.url)).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv' }));
+  a.download = 'canciones.csv';
+  a.click();
+});
+</script>
+</body>
+</html>
